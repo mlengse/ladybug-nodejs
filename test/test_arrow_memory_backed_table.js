@@ -6,6 +6,10 @@ const fs = require("fs");
 // Access the native module directly for test helpers
 const LbugNative = require("../build/lbug_native.js");
 
+// createArrowCSRTestData is only compiled in when the addon is built with
+// LBUG_NODEJS_ENABLE_TEST_EXPORTS=ON. Skip the whole suite otherwise.
+const hasTestHelpers = typeof LbugNative.createArrowCSRTestData === "function";
+
 let arrowDb, arrowConn;
 
 before(function () {
@@ -15,12 +19,23 @@ before(function () {
   arrowConn = new lbug.Connection(arrowDb, 2);
 });
 
+after(function () {
+  if (arrowConn) arrowConn.closeSync();
+  if (arrowDb) arrowDb.closeSync();
+});
+
 describe("createArrowRelTableSync CSR", function () {
+  before(function () {
+    if (!hasTestHelpers) {
+      this.skip();
+    }
+  });
   it("should throw when dstColName is not a string in CSR mode", function () {
     const { nodeSchemaPtr, nodeArrayPtr, indicesSchemaPtr, indicesArrayPtr,
       indptrSchemaPtr, indptrArrayPtr } = LbugNative.createArrowCSRTestData("to");
 
-    arrowConn.createArrowTableSync("person_err", nodeSchemaPtr, nodeArrayPtr, 1);
+    const createPersonResult = arrowConn.createArrowTableSync("person_err", nodeSchemaPtr, nodeArrayPtr, 1);
+    createPersonResult.close();
 
     assert.throws(() => {
       arrowConn.createArrowRelTableSync(
@@ -36,20 +51,24 @@ describe("createArrowRelTableSync CSR", function () {
     const { nodeSchemaPtr, nodeArrayPtr, indicesSchemaPtr, indicesArrayPtr,
       indptrSchemaPtr, indptrArrayPtr } = LbugNative.createArrowCSRTestData("to");
 
-    arrowConn.createArrowTableSync("person_default", nodeSchemaPtr, nodeArrayPtr, 1);
+    const createPersonResult = arrowConn.createArrowTableSync("person_default", nodeSchemaPtr, nodeArrayPtr, 1);
+    createPersonResult.close();
 
     // Use default dstColName "to" (omit last optional param)
-    arrowConn.createArrowRelTableSync(
+    const createRelResult = arrowConn.createArrowRelTableSync(
       "knows_default", "person_default", "person_default",
       indicesSchemaPtr, indicesArrayPtr, 1,
       indptrSchemaPtr, indptrArrayPtr, 1
     );
+    createRelResult.close();
 
     // Verify edges: person0→person1 (w=10), person0→person2 (w=20), person1→person2 (w=30)
-    const rows = arrowConn.querySync(
+    const qr = arrowConn.querySync(
       "MATCH (a:person_default)-[r:knows_default]->(b:person_default) " +
       "RETURN a.id, r.weight, b.id ORDER BY a.id, b.id"
-    ).getAllSync();
+    );
+    const rows = qr.getAllSync();
+    qr.close();
 
     assert.deepEqual(
       rows.map(r => [Number(r["a.id"]), Number(r["r.weight"]), Number(r["b.id"])]),
@@ -62,19 +81,23 @@ describe("createArrowRelTableSync CSR", function () {
     const { nodeSchemaPtr, nodeArrayPtr, indicesSchemaPtr, indicesArrayPtr,
       indptrSchemaPtr, indptrArrayPtr } = LbugNative.createArrowCSRTestData(dstColName);
 
-    arrowConn.createArrowTableSync("person_custom", nodeSchemaPtr, nodeArrayPtr, 1);
+    const createPersonResult = arrowConn.createArrowTableSync("person_custom", nodeSchemaPtr, nodeArrayPtr, 1);
+    createPersonResult.close();
 
-    arrowConn.createArrowRelTableSync(
+    const createRelResult = arrowConn.createArrowRelTableSync(
       "knows_custom", "person_custom", "person_custom",
       indicesSchemaPtr, indicesArrayPtr, 1,
       indptrSchemaPtr, indptrArrayPtr, 1,
       dstColName
     );
+    createRelResult.close();
 
-    const rows = arrowConn.querySync(
+    const qr = arrowConn.querySync(
       "MATCH (a:person_custom)-[r:knows_custom]->(b:person_custom) " +
       "RETURN a.id, r.weight, b.id ORDER BY a.id, b.id"
-    ).getAllSync();
+    );
+    const rows = qr.getAllSync();
+    qr.close();
 
     assert.deepEqual(
       rows.map(r => [Number(r["a.id"]), Number(r["r.weight"]), Number(r["b.id"])]),
@@ -86,7 +109,8 @@ describe("createArrowRelTableSync CSR", function () {
     // Fresh data since each call to createArrowTableSync transfers ownership
     const d = LbugNative.createArrowCSRTestData("to");
 
-    arrowConn.createArrowTableSync("person_flat_test", d.nodeSchemaPtr, d.nodeArrayPtr, 1);
+    const createPersonResult = arrowConn.createArrowTableSync("person_flat_test", d.nodeSchemaPtr, d.nodeArrayPtr, 1);
+    createPersonResult.close();
 
     // Flat path requires "from"/"to" columns in the Arrow batch.
     // Passing a batch with only "id" should trigger a Ladybug error (confirming flat path is used).

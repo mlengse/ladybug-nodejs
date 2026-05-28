@@ -104,7 +104,16 @@ get_filename_component(NODE_ADDON_API_INCLUDE_PATH ./node_modules/node-addon-api
 include_directories(${CMAKE_JS_INC})
 include_directories(${NODE_ADDON_API_INCLUDE_PATH})
 
-file(GLOB CPP_SOURCE_FILES ./src_cpp/*)
+option(LBUG_NODEJS_ENABLE_TEST_EXPORTS
+    "Export test-only native helpers (e.g. createArrowCSRTestData). Enable for dev/test builds only; never ship in production."
+    OFF)
+
+file(GLOB CPP_SOURCE_FILES ./src_cpp/*.cpp)
+
+if(NOT LBUG_NODEJS_ENABLE_TEST_EXPORTS)
+    list(REMOVE_ITEM CPP_SOURCE_FILES "${CMAKE_CURRENT_SOURCE_DIR}/src_cpp/node_arrow_test_utils.cpp")
+endif()
+
 file(GLOB JS_SOURCE_FILES 
     ./src_js/*.js
     ./src_js/*.mjs
@@ -177,4 +186,8 @@ endif()
 target_link_libraries(lbugjs PRIVATE lbug ${NODEJS_LBUG_LINK_DEPS} ${CMAKE_JS_LIB})
 if(LBUG_NODEJS_EXTRA_LINK_LIBS)
   target_link_libraries(lbugjs PRIVATE ${LBUG_NODEJS_EXTRA_LINK_LIBS})
+endif()
+if(LBUG_NODEJS_ENABLE_TEST_EXPORTS)
+  target_compile_definitions(lbugjs PRIVATE LBUG_ENABLE_TEST_EXPORTS)
+  message(STATUS "lbugjs: test-only exports enabled (LBUG_NODEJS_ENABLE_TEST_EXPORTS=ON)")
 endif()

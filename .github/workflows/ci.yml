@@ -109,6 +109,8 @@ jobs:
       - name: Build Node.js native module (Windows)
         if: ${{ matrix.platform == 'win32' }}
         shell: cmd
+        env:
+          EXTRA_CMAKE_FLAGS: -DLBUG_NODEJS_ENABLE_TEST_EXPORTS=ON
         run: |
           powershell.exe -Command "Add-MpPreference -ExclusionPath '${{ github.workspace }}'"
           call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
@@ -124,6 +126,7 @@ jobs:
           CMAKE_OSX_ARCHITECTURES: ${{ matrix.mac_env && matrix.arch || '' }}
           CMAKE_C_COMPILER_LAUNCHER: ccache
           CMAKE_CXX_COMPILER_LAUNCHER: ccache
+          EXTRA_CMAKE_FLAGS: -DLBUG_NODEJS_ENABLE_TEST_EXPORTS=ON
 
       - name: Run Node.js tests
         working-directory: tools/nodejs_api

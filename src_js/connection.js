@@ -426,6 +426,12 @@ class Connection {
     const connection = this._getConnectionSync();
     const nodeQueryResult = new LbugNative.NodeQueryResult();
     if (indptrSchemaPtr != null) {
+      if (indptrArraysPtr == null) {
+        throw new Error("indptrArraysPtr must be provided in CSR mode.");
+      }
+      if (!Array.isArray(indptrArraysPtr) && (!Number.isSafeInteger(numIndptrArrays) || numIndptrArrays <= 0)) {
+        throw new Error("numIndptrArrays must be a positive integer.");
+      }
       if (typeof dstColName !== "string") {
         throw new Error("dstColName must be a string.");
       }

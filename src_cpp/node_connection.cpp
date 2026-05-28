@@ -10,6 +10,25 @@
 
 namespace {
 
+// Maximum number of Arrow arrays accepted in a single batch call.
+// Guards against integer-wrap DoS when a raw pointer + count is used.
+static constexpr int64_t kMaxArrowBatchCount = 65536;
+
+// Reads a batch-count argument, throwing if it is not a number, not a positive
+// integer, or exceeds kMaxArrowBatchCount.
+static uint64_t ValidateArrayCount(const Napi::Value& value, const char* name) {
+    if (!value.IsNumber()) {
+        throw std::runtime_error(std::string(name) + " must be a number.");
+    }
+    auto count = value.As<Napi::Number>().Int64Value();
+    if (count <= 0 || count > kMaxArrowBatchCount) {
+        throw std::runtime_error(std::string(name) +
+                                 " must be a positive integer no greater than " +
+                                 std::to_string(kMaxArrowBatchCount) + ".");
+    }
+    return static_cast<uint64_t>(count);
+}
+
 template<typename T>
 T* GetPointerArgument(const Napi::Value& value, const char* name) {
     if (value.IsBigInt()) {
@@ -264,7 +283,7 @@ Napi::Value NodeConnection::CreateArrowTableSync(const Napi::CallbackInfo& info)
     Napi::HandleScope scope(env);
     auto tableName = info[0].As<Napi::String>().Utf8Value();
     auto* schema = GetPointerArgument<ArrowSchema>(info[1], "schema");
-    auto numArrays = info[3].As<Napi::Number>().Int64Value();
+    auto numArrays = ValidateArrayCount(info[3], "numArrays");
     auto nodeQueryResult = Napi::ObjectWrap<NodeQueryResult>::Unwrap(info[4].As<Napi::Object>());
     try {
         auto result = lbug::ArrowTableSupport::createViewFromArrowTable(*connection, tableName,
@@ -290,9 +309,9 @@ Napi::Value NodeConnection::CreateArrowRelTableSync(const Napi::CallbackInfo& in
             //           info[6]=indptrSchemaPtr,  info[7]=indptrArraysPtr, info[8]=numIndptrArrays,
             //           info[9]=dstColName,        info[10]=nodeQueryResult
             auto* indicesSchema = GetPointerArgument<ArrowSchema>(info[3], "indicesSchema");
-            auto numIndicesArrays = info[5].As<Napi::Number>().Uint32Value();
+            auto numIndicesArrays = ValidateArrayCount(info[5], "numIndicesArrays");
             auto* indptrSchema = GetPointerArgument<ArrowSchema>(info[6], "indptrSchema");
-            auto numIndptrArrays = info[8].As<Napi::Number>().Uint32Value();
+            auto numIndptrArrays = ValidateArrayCount(info[8], "numIndptrArrays");
             auto dstColName = info[9].As<Napi::String>().Utf8Value();
             auto nodeQueryResult =
                 Napi::ObjectWrap<NodeQueryResult>::Unwrap(info[10].As<Napi::Object>());
@@ -306,7 +325,7 @@ Napi::Value NodeConnection::CreateArrowRelTableSync(const Napi::CallbackInfo& in
             // Flat mode: info[3]=schemaPtr, info[4]=arraysPtr, info[5]=numArrays,
             // info[6]=nodeQueryResult
             auto* schema = GetPointerArgument<ArrowSchema>(info[3], "schema");
-            auto numArrays = info[5].As<Napi::Number>().Uint32Value();
+            auto numArrays = ValidateArrayCount(info[5], "numArrays");
             auto nodeQueryResult =
                 Napi::ObjectWrap<NodeQueryResult>::Unwrap(info[6].As<Napi::Object>());
             auto result = lbug::ArrowTableSupport::createRelTableFromArrowTable(*connection,
