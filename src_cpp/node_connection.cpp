@@ -46,8 +46,8 @@ std::vector<ArrowArrayWrapper> TakeArrowArrays(const Napi::Value& value, uint64_
         auto arrayPointers = value.As<Napi::Array>();
         wrappers.reserve(arrayPointers.Length());
         for (auto i = 0u; i < arrayPointers.Length(); ++i) {
-            wrappers.push_back(TakeArrowArray(
-                GetPointerArgument<ArrowArray>(arrayPointers.Get(i), "ArrowArray")));
+            wrappers.push_back(
+                TakeArrowArray(GetPointerArgument<ArrowArray>(arrayPointers.Get(i), "ArrowArray")));
         }
         return wrappers;
     }
@@ -69,7 +69,8 @@ void AdoptArrowQueryResult(Napi::Env env, NodeQueryResult* nodeQueryResult,
         Napi::Error::New(env, result->getErrorMessage()).ThrowAsJavaScriptException();
         return;
     }
-    nodeQueryResult->AdoptQueryResult(std::move(result), std::move(connection), std::move(database));
+    nodeQueryResult->AdoptQueryResult(std::move(result), std::move(connection),
+        std::move(database));
 }
 
 } // namespace
@@ -221,9 +222,8 @@ Napi::Value NodeConnection::QueryAsync(const Napi::CallbackInfo& info) {
     auto statement = info[0].As<Napi::String>().Utf8Value();
     auto nodeQueryResult = Napi::ObjectWrap<NodeQueryResult>::Unwrap(info[1].As<Napi::Object>());
     auto callback = info[2].As<Napi::Function>();
-    auto asyncWorker =
-        new ConnectionQueryAsyncWorker(
-            callback, connection, database, statement, nodeQueryResult, info[3]);
+    auto asyncWorker = new ConnectionQueryAsyncWorker(callback, connection, database, statement,
+        nodeQueryResult, info[3]);
     asyncWorker->Queue();
     return info.Env().Undefined();
 }
@@ -235,8 +235,8 @@ Napi::Value NodeConnection::QueryArrowAsync(const Napi::CallbackInfo& info) {
     auto chunkSize = info[1].As<Napi::Number>().Int64Value();
     auto nodeQueryResult = Napi::ObjectWrap<NodeQueryResult>::Unwrap(info[2].As<Napi::Object>());
     auto callback = info[3].As<Napi::Function>();
-    auto asyncWorker = new ConnectionQueryArrowAsyncWorker(
-        callback, connection, database, statement, chunkSize, nodeQueryResult);
+    auto asyncWorker = new ConnectionQueryArrowAsyncWorker(callback, connection, database,
+        statement, chunkSize, nodeQueryResult);
     asyncWorker->Queue();
     return info.Env().Undefined();
 }
@@ -269,8 +269,8 @@ Napi::Value NodeConnection::CreateArrowTableSync(const Napi::CallbackInfo& info)
     try {
         auto result = lbug::ArrowTableSupport::createViewFromArrowTable(*connection, tableName,
             TakeArrowSchema(schema), TakeArrowArrays(info[2], numArrays));
-        AdoptArrowQueryResult(
-            env, nodeQueryResult, std::move(result.queryResult), connection, database);
+        AdoptArrowQueryResult(env, nodeQueryResult, std::move(result.queryResult), connection,
+            database);
     } catch (const std::exception& exc) {
         Napi::Error::New(env, std::string(exc.what())).ThrowAsJavaScriptException();
     }
@@ -283,14 +283,38 @@ Napi::Value NodeConnection::CreateArrowRelTableSync(const Napi::CallbackInfo& in
     auto tableName = info[0].As<Napi::String>().Utf8Value();
     auto srcTableName = info[1].As<Napi::String>().Utf8Value();
     auto dstTableName = info[2].As<Napi::String>().Utf8Value();
-    auto* schema = GetPointerArgument<ArrowSchema>(info[3], "schema");
-    auto numArrays = info[5].As<Napi::Number>().Int64Value();
-    auto nodeQueryResult = Napi::ObjectWrap<NodeQueryResult>::Unwrap(info[6].As<Napi::Object>());
     try {
-        auto result = lbug::ArrowTableSupport::createRelTableFromArrowTable(*connection, tableName,
-            srcTableName, dstTableName, TakeArrowSchema(schema), TakeArrowArrays(info[4], numArrays));
-        AdoptArrowQueryResult(
-            env, nodeQueryResult, std::move(result.queryResult), connection, database);
+        if (info.Length() == 11) {
+            // CSR mode: info[3]=indicesSchemaPtr, info[4]=indicesArraysPtr,
+            // info[5]=numIndicesArrays,
+            //           info[6]=indptrSchemaPtr,  info[7]=indptrArraysPtr, info[8]=numIndptrArrays,
+            //           info[9]=dstColName,        info[10]=nodeQueryResult
+            auto* indicesSchema = GetPointerArgument<ArrowSchema>(info[3], "indicesSchema");
+            auto numIndicesArrays = info[5].As<Napi::Number>().Uint32Value();
+            auto* indptrSchema = GetPointerArgument<ArrowSchema>(info[6], "indptrSchema");
+            auto numIndptrArrays = info[8].As<Napi::Number>().Uint32Value();
+            auto dstColName = info[9].As<Napi::String>().Utf8Value();
+            auto nodeQueryResult =
+                Napi::ObjectWrap<NodeQueryResult>::Unwrap(info[10].As<Napi::Object>());
+            auto result = lbug::ArrowTableSupport::createRelTableFromArrowCSR(*connection,
+                tableName, srcTableName, dstTableName, TakeArrowSchema(indicesSchema),
+                TakeArrowArrays(info[4], numIndicesArrays), TakeArrowSchema(indptrSchema),
+                TakeArrowArrays(info[7], numIndptrArrays), dstColName);
+            AdoptArrowQueryResult(env, nodeQueryResult, std::move(result.queryResult), connection,
+                database);
+        } else {
+            // Flat mode: info[3]=schemaPtr, info[4]=arraysPtr, info[5]=numArrays,
+            // info[6]=nodeQueryResult
+            auto* schema = GetPointerArgument<ArrowSchema>(info[3], "schema");
+            auto numArrays = info[5].As<Napi::Number>().Uint32Value();
+            auto nodeQueryResult =
+                Napi::ObjectWrap<NodeQueryResult>::Unwrap(info[6].As<Napi::Object>());
+            auto result = lbug::ArrowTableSupport::createRelTableFromArrowTable(*connection,
+                tableName, srcTableName, dstTableName, TakeArrowSchema(schema),
+                TakeArrowArrays(info[4], numArrays));
+            AdoptArrowQueryResult(env, nodeQueryResult, std::move(result.queryResult), connection,
+                database);
+        }
     } catch (const std::exception& exc) {
         Napi::Error::New(env, std::string(exc.what())).ThrowAsJavaScriptException();
     }

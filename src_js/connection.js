@@ -398,10 +398,22 @@ class Connection {
 
   /**
    * Create an Arrow memory-backed relationship table from Arrow C Data Interface pointers.
-   * The Arrow table must contain endpoint columns named "from" and "to".
+   * For flat layout (default): the Arrow table must contain endpoint columns named "from" and "to".
+   * For CSR layout: pass indptrSchemaPtr and indptrArraysPtr; dstColName names the destination column.
    * Ownership of the schema and arrays is transferred to Ladybug.
    */
-  createArrowRelTableSync(tableName, srcTableName, dstTableName, schemaPtr, arraysPtr, numArrays = 1) {
+  createArrowRelTableSync(
+    tableName,
+    srcTableName,
+    dstTableName,
+    schemaPtr,
+    arraysPtr,
+    numArrays = 1,
+    indptrSchemaPtr = null,
+    indptrArraysPtr = null,
+    numIndptrArrays = 1,
+    dstColName = "to"
+  ) {
     if (typeof tableName !== "string") {
       throw new Error("tableName must be a string.");
     }
@@ -413,15 +425,34 @@ class Connection {
     }
     const connection = this._getConnectionSync();
     const nodeQueryResult = new LbugNative.NodeQueryResult();
-    connection.createArrowRelTableSync(
-      tableName,
-      srcTableName,
-      dstTableName,
-      schemaPtr,
-      arraysPtr,
-      numArrays,
-      nodeQueryResult
-    );
+    if (indptrSchemaPtr != null) {
+      if (typeof dstColName !== "string") {
+        throw new Error("dstColName must be a string.");
+      }
+      connection.createArrowRelTableSync(
+        tableName,
+        srcTableName,
+        dstTableName,
+        schemaPtr,
+        arraysPtr,
+        numArrays,
+        indptrSchemaPtr,
+        indptrArraysPtr,
+        numIndptrArrays,
+        dstColName,
+        nodeQueryResult
+      );
+    } else {
+      connection.createArrowRelTableSync(
+        tableName,
+        srcTableName,
+        dstTableName,
+        schemaPtr,
+        arraysPtr,
+        numArrays,
+        nodeQueryResult
+      );
+    }
     return new QueryResult(this, nodeQueryResult);
   }
 

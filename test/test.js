@@ -14,6 +14,7 @@ describe("lbug", () => {
   importTest("Connection", "./test_connection.js");
   importTest("Query result", "./test_query_result.js");
   importTest("Arrow query", "./test_arrow_query.js");
+  importTest("Arrow memory-backed table", "./test_arrow_memory_backed_table.js");
   importTest("Data types", "./test_data_type.js");
   importTest("Query parameters", "./test_parameter.js");
   importTest("Concurrent query execution", "./test_concurrency.js");

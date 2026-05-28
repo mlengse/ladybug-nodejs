@@ -1,3 +1,4 @@
+#include "include/node_arrow_test_utils.h"
 #include "include/node_connection.h"
 #include "include/node_database.h"
 #include "include/node_query_result.h"
@@ -8,6 +9,7 @@ Napi::Object InitAll(Napi::Env env, Napi::Object exports) {
     NodeDatabase::Init(env, exports);
     NodePreparedStatement::Init(env, exports);
     NodeQueryResult::Init(env, exports);
+    exports.Set("createArrowCSRTestData", Napi::Function::New(env, CreateArrowCSRTestData));
     return exports;
 }
 

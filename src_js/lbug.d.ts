@@ -325,7 +325,8 @@ export class Connection {
 
     /**
      * Create an Arrow memory-backed relationship table from Arrow C Data Interface pointers.
-     * The Arrow table must contain endpoint columns named "from" and "to".
+     * For flat layout (default): the Arrow table must contain endpoint columns named "from" and "to".
+     * For CSR layout: pass indptrSchemaPtr and indptrArraysPtr; dstColName names the destination column.
      * Ownership of schemaPtr and arraysPtr is transferred to Ladybug.
      */
     createArrowRelTableSync(
@@ -334,8 +335,11 @@ export class Connection {
         dstTableName: string,
         schemaPtr: NativePointer,
         arraysPtr: NativePointer | NativePointer[],
-        numArrays?: number
-    ): QueryResult;
+        numArrays?: number,
+        indptrSchemaPtr?: NativePointer | null,
+        indptrArraysPtr?: NativePointer | NativePointer[] | null,
+        numIndptrArrays?: number,
+        dstColName?: string): QueryResult;
 
     /**
      * Drop an Arrow memory-backed table and unregister its Arrow data.
